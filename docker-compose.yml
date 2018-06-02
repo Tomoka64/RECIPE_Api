@@ -1,0 +1,23 @@
+version: '2'
+services:
+    go:
+        image: golang:1.10-alpine
+        ports:
+            - "4000:8080"
+        build: .
+        links:
+            - postgres
+        environment:
+            DEBUG: 'true'
+            PORT: '5432'
+
+    postgres:
+        image: postgres:9.5-alpine
+        restart: unless-stopped
+        ports:
+            - "5432:5432"
+        environment:
+            LC_ALL: C.UTF-8
+            POSTGRES_USER: hellofresh
+            POSTGRES_PASSWORD: hellofresh
+            POSTGRES_DB: hellofresh
