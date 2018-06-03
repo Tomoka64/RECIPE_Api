@@ -12,14 +12,7 @@ type Recipe struct {
 	PrepTime    int
 	Difficulty  int
 	Vegetarian  bool
-
-	CreatedAt time.Time
-}
-
-const timeFormat = "2006-01-02 15:04:05"
-
-func (recipe *Recipe) CreatedAtDate() string {
-	return recipe.CreatedAt.Format(timeFormat)
+	CreatedAt   time.Time
 }
 
 func (recipe *Recipe) CreateRecipe(exec Executer) error {
