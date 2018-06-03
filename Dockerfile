@@ -1,11 +1,16 @@
 FROM golang:1.10-alpine
 
-ADD ./web /home
+COPY . /go/src/github.com/Tomoka64
 
-WORKDIR /home
+WORKDIR /go/src/github.com/Tomoka64
 
 RUN \
-       apk add --no-cache bash git openssh && \
-       go get -u github.com/julienschmidt/httprouter
+        echo $GOPATH && \
+        apk add --no-cache bash curl git openssh && \
+        curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
-CMD ["go","run","main.go"]
+RUN dep ensure -v
+
+RUN go build ./...
+    
+CMD ["./RECIPE_Api"]
