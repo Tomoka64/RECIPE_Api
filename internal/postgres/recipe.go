@@ -16,14 +16,6 @@ type Recipe struct {
 	CreatedAt time.Time
 }
 
-// type Comment struct {
-// 	Id        int
-// 	Uuid      string
-// 	Body      string
-// 	UserId    int
-// 	ThreadId  int
-// 	CreatedAt time.Time
-// }
 const timeFormat = "2006-01-02 15:04:05"
 
 func (recipe *Recipe) CreatedAtDate() string {
