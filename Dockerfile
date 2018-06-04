@@ -1,8 +1,8 @@
 FROM golang:1.10-alpine
 
-COPY . /go/src/github.com/Tomoka64
+COPY . /go/src/github.com/Tomoka64/RECIPE_Api
 
-WORKDIR /go/src/github.com/Tomoka64
+WORKDIR /go/src/github.com/Tomoka64/RECIPE_Api
 
 RUN \
         echo $GOPATH && \
