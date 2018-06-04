@@ -2,15 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/alecthomas/template"
-  packages = [
-    ".",
-    "parse"
-  ]
-  revision = "a0175ee3bccc567396460bf5acd36800cb10c49c"
-
-[[projects]]
   name = "github.com/garyburd/redigo"
   packages = [
     "internal",
@@ -61,6 +52,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a55094583cc0eb257ec0c50a2c0ec3bc563f43248111682ad874de9b341e9333"
+  inputs-digest = "599586bd992314c3b5016fd81812768b9dc24d4d8002feecfe893291a4b7e85b"
   solver-name = "gps-cdcl"
   solver-version = 1

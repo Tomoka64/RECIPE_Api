@@ -8,11 +8,19 @@ import (
 
 type User struct {
 	ID        int
-	Salt      string
 	Name      string
 	Email     string
 	Password  string
 	CreatedAt time.Time
+}
+
+func (u *User) CreateUser(exec Executer) error {
+	statement := "INSERT INTO users (name, email, password) VALUES ($1, $2, $3)"
+	_, err := exec.Exec(statement, u.Name, u.Email, u.Password)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetUser(exec Executer, name, password string) (*User, error) {
