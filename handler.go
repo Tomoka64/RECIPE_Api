@@ -36,12 +36,12 @@ func (s *Server) handler() error {
 	router.DELETE("/recipes/{id}", s.Delete()) // restricted
 	router.POST("/recipes/{id}/rating", Rate)  // not restricted
 
-	router.GET("/form/login", Login)
-	router.GET("/form/signup", Signup)
+	router.GET("/form/login", s.Login())   //just to serve template
+	router.GET("/form/signup", s.Signup()) //just to serve template
 
 	// router.POST("/api/createuser", createUser)
-	// router.POST("/api/login", LoginProcess)
-	// router.GET("/api/logout", logout)
+	router.POST("/api/login", s.LoginProcess())
+	router.GET("/api/logout", s.Logout())
 	// router.GET("/post/done", Done)
 
 	server := &http.Server{
@@ -83,6 +83,8 @@ func (s *Server) LoginProcess() Handler {
 				return
 			}
 			sess.Values["user_name"] = username
+			sess.Options.Secure = true
+			sess.Options.HttpOnly = true
 			sess.Save(r, w)
 		}
 		return
@@ -192,10 +194,43 @@ func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 }
 
-func Login(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-
+func (s *Server) Login() Handler {
+	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		sess, err := s.Store.Get(r, "session")
+		if err != nil {
+			fmt.Fprintln(w, http.StatusInternalServerError)
+			return
+		}
+		if Loggedin(sess) {
+			http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+		}
+		s.Tpl.ExecuteTemplate(w, "login", nil)
+	}
 }
 
-func Signup(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (s *Server) Logout() Handler {
+	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		sess, err := s.Store.Get(r, "session")
+		if err != nil {
+			fmt.Fprintln(w, http.StatusInternalServerError)
+			return
+		}
+		sess.Options.MaxAge = -1
+		sess.Save(r, w)
+		http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+	}
+}
 
+func (s *Server) Signup() Handler {
+	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		sess, err := s.Store.Get(r, "session")
+		if err != nil {
+			fmt.Fprintln(w, http.StatusInternalServerError)
+			return
+		}
+		if !Loggedin(sess) {
+			s.Tpl.ExecuteTemplate(w, "signup", nil)
+		}
+		http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+	}
 }
