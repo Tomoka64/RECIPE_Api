@@ -9,6 +9,17 @@ func (s *Server) UserAndPasswordMatch(name, password string) bool {
 	return err == nil
 }
 
-func (s *Server) UserExists(arg string) bool {
-	return (postgres.UserExistsByUsername(s.DB, arg) || postgres.UserExistsByEmail(s.DB, arg))
+func (s *Server) UserExists(username, email string) bool {
+	return (postgres.UserExistsByUsername(s.DB, username) || postgres.UserExistsByEmail(s.DB, email))
+}
+
+func IsPasswordValid(password string) bool {
+	if len(password) < 6 {
+		return false
+	}
+	if len(password) > 20 {
+		return false
+	}
+	//TODO: もしパスワードにアルファベット以外含まれていたら..
+	return true
 }

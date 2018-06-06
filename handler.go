@@ -39,9 +39,10 @@ func (s *Server) handler() error {
 	router.GET("/form/login", s.Login())   //just to serve template
 	router.GET("/form/signup", s.Signup()) //just to serve template
 
-	// router.POST("/api/createuser", createUser)
+	router.POST("/api/createuser", s.CreateUser())
 	router.POST("/api/login", s.LoginProcess())
 	router.GET("/api/logout", s.Logout())
+
 	// router.GET("/post/done", Done)
 
 	server := &http.Server{
@@ -232,5 +233,23 @@ func (s *Server) Signup() Handler {
 			s.Tpl.ExecuteTemplate(w, "signup", nil)
 		}
 		http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+	}
+}
+
+func (s *Server) CreateUser() Handler {
+	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		var user *postgres.User
+		name, password, email := r.FormValue("name"), r.FormValue("password"), r.FormValue("email")
+		if !IsPasswordValid(password) {
+			return
+		}
+		if s.UserExists(name, email) {
+			return
+		}
+		user.Name, user.Password, user.Email = name, password, email
+		if err := user.CreateUser(s.DB); err != nil {
+			fmt.Fprintln(w, http.StatusInternalServerError)
+			return
+		}
 	}
 }
