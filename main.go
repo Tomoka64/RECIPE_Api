@@ -1,6 +1,9 @@
 package main
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 func main() {
 	os.Exit(New().Run())
@@ -15,6 +18,7 @@ const (
 
 func (s *Server) Run() ExitStatus {
 	if err := s.handler(); err != nil {
+		fmt.Println(err)
 		return ExitFail
 	}
 	return ExitSuccess

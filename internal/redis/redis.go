@@ -13,6 +13,6 @@ func New() (Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	store.SetMaxAge(10 * 24 * 3600)
+	store.SetMaxAge(10 * 24 * 3600) //30days
 	return store, nil
 }
