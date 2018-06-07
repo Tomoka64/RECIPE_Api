@@ -29,12 +29,12 @@ func (s *Server) handler() error {
 	router := httprouter.New()
 	http.Handle("/", router)
 	router.GET("/", s.Index())
-	router.GET("/recipes", s.List())           // not restricted
-	router.POST("/recipes", s.Create())        // restricted
-	router.GET("/recipes/{id}", s.Get())       // not restricted
-	router.PATCH("/recipes/{id}", s.Update())  // restricted
-	router.DELETE("/recipes/{id}", s.Delete()) // restricted
-	router.POST("/recipes/{id}/rating", Rate)  // not restricted
+	router.GET("/recipes", s.List())              // not restricted
+	router.POST("/recipes", s.Create())           // restricted
+	router.GET("/recipes/{id}", s.Get())          // not restricted
+	router.PATCH("/recipes/{id}", s.Update())     // restricted
+	router.DELETE("/recipes/{id}", s.Delete())    // restricted
+	router.POST("/recipes/{id}/rating", s.Rate()) // not restricted
 
 	router.GET("/form/login", s.Login())   //just to serve template
 	router.GET("/form/signup", s.Signup()) //just to serve template
@@ -191,8 +191,15 @@ func (s *Server) Delete() Handler {
 	}
 }
 
-func Rate(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-
+func (s *Server) Rate() Handler {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		recipiId := ps.ByName("id")
+		if err := postgres.UpdateRate(s.DB, recipiId); err != nil {
+			fmt.Fprintln(w, http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/recipes/%s", recipiId), http.StatusSeeOther)
+	}
 }
 
 func (s *Server) Login() Handler {
