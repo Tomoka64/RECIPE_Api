@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Tomoka64/RECIPE_Api/internal/postgres"
-
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -66,6 +65,7 @@ func (s *Server) List() Handler {
 	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		recipes, err := postgres.GetAllRecipes(s.DB)
 		if err != nil {
+			s.Logger.Info(err.Error())
 			fmt.Fprintln(w, http.StatusInternalServerError)
 			return
 		}
@@ -106,6 +106,7 @@ func (s *Server) Get() Handler {
 
 func (s *Server) Create() Handler {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		w.Header().Set("Content-Type", "application/json")
 		sess, err := s.Store.Get(r, "session")
 		if err != nil {
 			fmt.Fprintln(w, http.StatusInternalServerError)
@@ -251,6 +252,7 @@ func (s *Server) CreateUser() Handler {
 			return
 		}
 		if s.UserExists(name, email) {
+
 			return
 		}
 		user.Name, user.Password, user.Email = name, password, email

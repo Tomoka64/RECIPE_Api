@@ -20,6 +20,10 @@ func IsPasswordValid(password string) bool {
 	if len(password) > 20 {
 		return false
 	}
-	//TODO: もしパスワードにアルファベット以外含まれていたら..
+	for _, c := range password {
+		if !('A' <= c && c <= 'z') {
+			return false
+		}
+	}
 	return true
 }

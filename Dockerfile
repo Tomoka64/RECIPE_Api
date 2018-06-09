@@ -11,6 +11,6 @@ RUN \
 
 RUN dep ensure -v
 
-RUN go build ./...
+RUN go install ./...
     
-CMD ["./RECIPE_Api"]
+CMD RECIPE_Api
