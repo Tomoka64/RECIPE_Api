@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tomoka64/RECIPE_Api/internal/postgres"
+	"github.com/Tomoka64/RECIPE_Api/internal/router"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -25,34 +26,30 @@ type Recipe struct {
 }
 
 func (s *Server) handler() error {
-	router := httprouter.New()
-	http.Handle("/", router)
-	router.GET("/", s.Index())
-	router.GET("/recipes", s.List())              // not restricted
-	router.POST("/recipes", s.Create())           // restricted
-	router.GET("/recipes/{id}", s.Get())          // not restricted
-	router.PATCH("/recipes/{id}", s.Update())     // restricted
-	router.DELETE("/recipes/{id}", s.Delete())    // restricted
-	router.POST("/recipes/{id}/rating", s.Rate()) // not restricted
+	r := router.New(s.Logger)
+	r.GET("/", s.Index())
+	r.GET("/recipes", s.List())              // not restricted
+	r.POST("/recipes", s.Create())           // restricted
+	r.GET("/recipes/{id}", s.Get())          // not restricted
+	r.PATCH("/recipes/{id}", s.Update())     // restricted
+	r.DELETE("/recipes/{id}", s.Delete())    // restricted
+	r.POST("/recipes/{id}/rating", s.Rate()) // not restricted
 
-	router.GET("/form/login", s.Login())   //just to serve template
-	router.GET("/form/signup", s.Signup()) //just to serve template
+	r.GET("/form/login", s.Login())   //just to serve template
+	r.GET("/form/signup", s.Signup()) //just to serve template
 
-	router.POST("/api/createuser", s.CreateUser())
-	router.POST("/api/login", s.LoginProcess())
-	router.GET("/api/logout", s.Logout())
+	r.POST("/api/createuser", s.CreateUser())
+	r.POST("/api/login", s.LoginProcess())
+	r.GET("/api/logout", s.Logout())
 
 	// router.GET("/post/done", Done)
 
 	server := &http.Server{
 		Addr:    ":8080",
-		Handler: router,
+		Handler: r,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		return err
-	}
-	return nil
+	return server.ListenAndServe()
 }
 
 func (s *Server) Index() Handler {
