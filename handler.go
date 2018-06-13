@@ -103,6 +103,7 @@ func (s *Server) LoginProcess() router.HandlerFunc {
 			return router.NewHTTPError(status.NotFound, "your username or email does not exist")
 		}
 		if s.UserAndPasswordMatch(username, password) {
+
 			c.Set("session", username)
 		}
 		return nil
@@ -128,11 +129,10 @@ func (s *Server) Create() router.HandlerFunc {
 			return c.Redirect(status.SeeOther, "/form/login")
 		}
 		var recipe postgres.Recipe
-		recipeId, err := strconv.Atoi(c.Params().ByName("id"))
-		if err != nil {
-			return router.NewHTTPError(status.Unauthorized, err.Error())
-		}
-		recipe.ID = recipeId
+		sess := v.(*sessions.Session)
+		username := sess.Values["username"]
+
+		recipe.UserId = sess.Values["username"]
 		if err := json.NewDecoder(c.Request().Body).Decode(&recipe); err != nil {
 			return router.NewHTTPError(status.InternalServerError, err.Error())
 		}
