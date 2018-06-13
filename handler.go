@@ -7,8 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Tomoka64/RECIPE_Api/internal/postgres"
+	"github.com/Tomoka64/RECIPE_Api/internal/middleware/logger"
+	"github.com/Tomoka64/RECIPE_Api/internal/middleware/session"
 	"github.com/Tomoka64/RECIPE_Api/internal/router"
+	"github.com/Tomoka64/RECIPE_Api/internal/status"
+	"github.com/gorilla/sessions"
+
+	"github.com/Tomoka64/RECIPE_Api/internal/postgres"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -25,8 +30,18 @@ type Recipe struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type User struct {
+	Name     string `json:"user_name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 func (s *Server) handler() error {
 	r := router.New(s.Logger)
+	r.UseMiddleWare(
+		logger.MiddleWare(s.Logger),
+		session.MiddleWare("session", s.Store),
+	)
 	r.GET("/", s.Index())
 	r.GET("/recipes", s.List())              // not restricted
 	r.POST("/recipes", s.Create())           // restricted
@@ -49,213 +64,202 @@ func (s *Server) handler() error {
 		Handler: r,
 	}
 
-	return server.ListenAndServe()
+	if err := server.ListenAndServe(); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (s *Server) Index() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+func (s *Server) Index() router.HandlerFunc {
+	return func(c router.Context) error {
+		return c.Redirect(status.SeeOther, "/recipes")
 	}
 }
 
-func (s *Server) List() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (s *Server) List() router.HandlerFunc {
+	return func(c router.Context) error {
 		recipes, err := postgres.GetAllRecipes(s.DB)
 		if err != nil {
-			s.Logger.Info(err.Error())
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+			return router.NewHTTPError(status.NotFound, err.Error())
 		}
-		s.GenerateHTML(w, r, "layout.html", &Data{Recipes: recipes})
+		return c.JSON(status.OK, &Data{Recipes: recipes})
 	}
 }
 
-func (s *Server) LoginProcess() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		username := r.FormValue("username")
-		email := r.FormValue("email")
-		if s.UserAndPasswordMatch(username, email) {
-			sess, err := s.Store.Get(r, "session")
-			if err != nil {
-				fmt.Fprintln(w, http.StatusInternalServerError)
-				return
+func (s *Server) LoginProcess() router.HandlerFunc {
+	return func(c router.Context) error {
+		v, ok := c.Get("session")
+		if ok {
+			sess := v.(*sessions.Session)
+			_, ok := sess.Values["username"]
+			if ok {
+				return c.Redirect(status.SeeOther, "/")
 			}
-			sess.Values["user_name"] = username
-			sess.Options.Secure = true
-			sess.Options.HttpOnly = true
-			sess.Save(r, w)
 		}
-		return
+		username := c.Request().FormValue("username")
+		email := c.Request().FormValue("email")
+		password := c.Request().FormValue("password")
+		if !s.UserExists(username, email) {
+			return router.NewHTTPError(status.NotFound, "your username or email does not exist")
+		}
+		if s.UserAndPasswordMatch(username, password) {
+			c.Set("session", username)
+		}
+		return nil
 	}
 }
 
-func (s *Server) Get() Handler {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		recipeId := ps.ByName("id")
+func (s *Server) Get() router.HandlerFunc {
+	return func(c router.Context) error {
+		recipeId := c.Params().ByName("id")
 		recipe, err := postgres.GetRecipeByID(s.DB, recipeId)
 		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+			return router.NewHTTPError(status.NotFound, err.Error())
 		}
-		s.GenerateHTML(w, r, "layout.html", &Data{Recipe: recipe})
+		return nil
 	}
 }
 
-func (s *Server) Create() Handler {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		w.Header().Set("Content-Type", "application/json")
-		sess, err := s.Store.Get(r, "session")
-		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
-		}
-		if !Loggedin(sess) {
-			fmt.Fprintln(w, http.StatusUnauthorized)
-			return
+func (s *Server) Create() router.HandlerFunc {
+	return func(c router.Context) error {
+		c.Response().Header().Set("Content-Type", "application/json")
+		v, ok := c.Get("session")
+		if !ok {
+			return c.Redirect(status.SeeOther, "/form/login")
 		}
 		var recipe postgres.Recipe
-		recipeId, err := strconv.Atoi(ps.ByName("id"))
+		recipeId, err := strconv.Atoi(c.Params().ByName("id"))
 		if err != nil {
-			fmt.Fprintln(w, http.StatusUnauthorized)
-			return
+			return router.NewHTTPError(status.Unauthorized, err.Error())
 		}
 		recipe.ID = recipeId
-		if err := json.NewDecoder(r.Body).Decode(&recipe); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+		if err := json.NewDecoder(c.Request().Body).Decode(&recipe); err != nil {
+			return router.NewHTTPError(status.InternalServerError, err.Error())
 		}
 		if err := recipe.CreateRecipe(s.DB); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+			return router.NewHTTPError(status.InternalServerError, err.Error())
+
 		}
+		return nil
 	}
 }
 
-func (s *Server) Update() Handler {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		sess, err := s.Store.Get(r, "session")
-		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+func (s *Server) Update() router.HandlerFunc {
+	return func(c router.Context) error {
+		c.Response().Header().Set("Content-Type", "application/json")
+		v, ok := c.Get("session")
+		if !ok {
+			return c.Redirect(status.SeeOther, "/form/login")
 		}
-		if !Loggedin(sess) {
-			fmt.Fprintln(w, http.StatusUnauthorized)
-			return
+		recipeId, err := strconv.Atoi(c.Params().ByName("id"))
+		if err != nil {
+			return router.NewHTTPError(status.Unauthorized, err.Error())
 		}
 		var recipe postgres.Recipe
-		recipeId, err := strconv.Atoi(ps.ByName("id"))
+		sess := v.(*sessions.Session)
+		u, err := postgres.GetAuthorByRecipeID(s.DB, c.Params().ByName("id"))
 		if err != nil {
-			fmt.Fprintln(w, http.StatusUnauthorized)
-			return
+			return router.NewHTTPError(status.NotFound, err.Error())
+
+		}
+		if sess.Values["username"] == u.Name {
+			if err := recipe.DeleteRecipe(s.DB); err != nil {
+				return router.NewHTTPError(status.InternalServerError, err.Error())
+			}
 		}
 		recipe.ID = recipeId
-		if err := json.NewDecoder(r.Body).Decode(&recipe); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
-		}
 		if err := recipe.UpdateRecipe(s.DB); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+			return router.NewHTTPError(status.InternalServerError, err.Error())
 		}
+		return nil
 	}
 }
 
-func (s *Server) Delete() Handler {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		sess, err := s.Store.Get(r, "session")
-		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
-		}
-		if !Loggedin(sess) {
-			fmt.Fprintln(w, http.StatusUnauthorized)
-			return
+func (s *Server) Delete() router.HandlerFunc {
+	return func(c router.Context) error {
+		v, ok := c.Get("session")
+		if !ok {
+			return c.Redirect(status.SeeOther, "/form/login")
 		}
 		var recipe postgres.Recipe
-		recipeId, err := strconv.Atoi(ps.ByName("id"))
+		sess := v.(*sessions.Session)
+		u, err := postgres.GetAuthorByRecipeID(s.DB, c.Params().ByName("id"))
 		if err != nil {
-			fmt.Fprintln(w, http.StatusUnauthorized)
-			return
+			return router.NewHTTPError(status.NotFound, err.Error())
+
 		}
-		recipe.ID = recipeId
-		if err := json.NewDecoder(r.Body).Decode(&recipe); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+		if sess.Values["username"] == u.Name {
+			if err := recipe.DeleteRecipe(s.DB); err != nil {
+				return router.NewHTTPError(status.InternalServerError, err.Error())
+			}
 		}
-		if err := recipe.DeleteRecipe(s.DB); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
-		}
+		return nil
 	}
 }
 
-func (s *Server) Rate() Handler {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		recipiId := ps.ByName("id")
+func (s *Server) Rate() router.HandlerFunc {
+	return func(c router.Context) error {
+		recipiId := c.Params().ByName("id")
 		if err := postgres.UpdateRate(s.DB, recipiId); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+			return router.NewHTTPError(status.InternalServerError, err.Error())
 		}
-		http.Redirect(w, r, fmt.Sprintf("/recipes/%s", recipiId), http.StatusSeeOther)
+		return router.NewHTTPError(status.SeeOther, fmt.Sprintf("/recipes/%s", recipiId))
+	}
+	return nil
+}
+
+func (s *Server) Login() router.HandlerFunc {
+	return func(c router.Context) error {
+		_, ok := c.Get("session")
+		if ok {
+			return c.Redirect(status.SeeOther, "/")
+		}
+		return c.JSON(status.OK, &User{})
 	}
 }
 
-func (s *Server) Login() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		sess, err := s.Store.Get(r, "session")
-		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+func (s *Server) Logout() router.HandlerFunc {
+	return func(c router.Context) error {
+		v, ok := c.Get("session")
+		if ok {
+			return c.Redirect(status.SeeOther, "/")
 		}
-		if Loggedin(sess) {
-			http.Redirect(w, r, "/recipes", http.StatusSeeOther)
-		}
-		s.Tpl.ExecuteTemplate(w, "login", nil)
-	}
-}
-
-func (s *Server) Logout() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		sess, err := s.Store.Get(r, "session")
-		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
-		}
+		sess := v.(*sessions.Session)
 		sess.Options.MaxAge = -1
-		sess.Save(r, w)
-		http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+		sess.Save(c.Request(), c.Response())
+		return c.Redirect(status.SeeOther, "/recipes")
 	}
+	return nil
 }
 
-func (s *Server) Signup() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		sess, err := s.Store.Get(r, "session")
-		if err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+func (s *Server) Signup() router.HandlerFunc {
+	return func(c router.Context) error {
+		_, ok := c.Get("session")
+		if ok {
+			return c.Redirect(status.SeeOther, "/")
 		}
-		if !Loggedin(sess) {
-			s.Tpl.ExecuteTemplate(w, "signup", nil)
-		}
-		http.Redirect(w, r, "/recipes", http.StatusSeeOther)
+		return c.JSON(status.OK, &User{})
 	}
+	return nil
 }
 
-func (s *Server) CreateUser() Handler {
-	return func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		var user *postgres.User
-		name, password, email := r.FormValue("name"), r.FormValue("password"), r.FormValue("email")
-		if !IsPasswordValid(password) {
-			return
+func (s *Server) CreateUser() router.HandlerFunc {
+	return func(c router.Context) error {
+		var user *User
+		if err := json.NewDecoder(c.Request().Body).Decode(&user); err != nil {
+			return router.NewHTTPError(status.InternalServerError, err.Error())
 		}
-		if s.UserExists(name, email) {
-
-			return
+		if !IsPasswordValid(user.Password) {
+			return c.JSON(status.BadRequest, &user)
 		}
-		user.Name, user.Password, user.Email = name, password, email
-		if err := user.CreateUser(s.DB); err != nil {
-			fmt.Fprintln(w, http.StatusInternalServerError)
-			return
+		if s.UserExists(user.Name, user.Email) {
+			return c.JSON(status.Found, &User{})
 		}
+		var pUser postgres.User
+		pUser.Name, pUser.Password, pUser.Email = user.Name, user.Password, user.Email
+		if err := pUser.CreateUser(s.DB); err != nil {
+			return router.NewHTTPError(status.InternalServerError, err.Error())
+		}
+		return nil
 	}
 }

@@ -41,9 +41,9 @@ func GetAllRecipes(exec Executer) ([]*Recipe, error) {
 }
 
 //GetAuthor returns the author of the recipe
-func (recipe *Recipe) GetAuthor(exec Executer) (*User, error) {
+func GetAuthorByRecipeID(exec Executer, recipeId string) (*User, error) {
 	var user *User
-	if err := exec.Get(user, "SELECT * FROM users WHERE user_id = $1", recipe.UserId); err != nil {
+	if err := exec.Get(user, "SELECT * FROM users WHERE user_id = $1", recipeId); err != nil {
 		return nil, err
 	}
 	return user, nil

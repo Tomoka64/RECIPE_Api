@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/Tomoka64/RECIPE_Api/internal/status"
-	"github.com/Tomoka64/RECIPE_Api/internal/writer"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -46,7 +45,7 @@ func (he *HTTPError) Error() string {
 }
 
 // DefaultHTTPErrorHandler render error message to response
-func (r *Router) DefaultHTTPErrorHandler(err error, w http.ResponseWriter, req *http.Request) {
+func (r *Router) DefaultHTTPErrorHandler(err error, c Context) {
 	var (
 		code = status.InternalServerError
 		msg  string
@@ -61,10 +60,10 @@ func (r *Router) DefaultHTTPErrorHandler(err error, w http.ResponseWriter, req *
 
 	r.Logger.Error("Catching error", zap.Error(err))
 
-	if req.Method == "HEAD" {
-		err = writer.NoContent(w, code)
+	if c.Request().Method == "HEAD" {
+		err = c.NoContent(code)
 	} else {
-		err = writer.String(w, code, msg)
+		err = c.String(code, msg)
 	}
 	if err != nil {
 		r.Logger.Error("Send response error", zap.Error(err))

@@ -9,24 +9,25 @@ import (
 
 type Router struct {
 	base             *httprouter.Router
+	ctx              Context
 	middleware       []MiddleWareFunc
 	Logger           *zap.Logger
-	HTTPErrorHandler func(error, http.ResponseWriter, *http.Request)
+	HTTPErrorHandler func(error, Context)
 }
 
 type (
 	MiddleWareFunc func(HandlerFunc) HandlerFunc
-	HandlerFunc    func(http.ResponseWriter, *http.Request, httprouter.Params) error
+	HandlerFunc    func(Context) error
 )
 
 var (
 	// NotFoundHandler run if not match registerd method and path.
-	NotFoundHandler = func(http.ResponseWriter, *http.Request, httprouter.Params) error {
+	NotFoundHandler = func(Context) error {
 		return ErrNotFound
 	}
 
 	// MethodNotAllowedHandler run if not match registerd method.
-	MethodNotAllowedHandler = func(http.ResponseWriter, *http.Request, httprouter.Params) error {
+	MethodNotAllowedHandler = func(Context) error {
 		return ErrMethodNotAllowed
 	}
 )
@@ -34,6 +35,7 @@ var (
 func New(l *zap.Logger) *Router {
 	r := &Router{
 		base:   httprouter.New(),
+		ctx:    NewContext(),
 		Logger: l,
 	}
 	r.HTTPErrorHandler = r.DefaultHTTPErrorHandler
@@ -80,43 +82,44 @@ func (r *Router) Handle(method, path string, handler HandlerFunc) {
 		for i := len(r.middleware) - 1; i >= 0; i-- {
 			h = r.middleware[i](h)
 		}
-		if err := h(w, req, p); err != nil {
-			r.HTTPErrorHandler(err, w, req)
+		r.ctx.ResetContext(w, req, p)
+		if err := h(r.ctx); err != nil {
+			r.HTTPErrorHandler(err, r.ctx)
 		}
 	})
 }
 
 // GET is a shortcut for router.Handle("GET", path, handle)
-func (r *Router) GET(path string, handle httprouter.Handle) {
-	r.base.Handle("GET", path, handle)
+func (r *Router) GET(path string, handle HandlerFunc) {
+	r.Handle("GET", path, handle)
 }
 
 // HEAD is a shortcut for router.Handle("HEAD", path, handle)
-func (r *Router) HEAD(path string, handle httprouter.Handle) {
-	r.base.Handle("HEAD", path, handle)
+func (r *Router) HEAD(path string, handle HandlerFunc) {
+	r.Handle("HEAD", path, handle)
 }
 
 // OPTIONS is a shortcut for router.Handle("OPTIONS", path, handle)
-func (r *Router) OPTIONS(path string, handle httprouter.Handle) {
-	r.base.Handle("OPTIONS", path, handle)
+func (r *Router) OPTIONS(path string, handle HandlerFunc) {
+	r.Handle("OPTIONS", path, handle)
 }
 
 // POST is a shortcut for router.Handle("POST", path, handle)
-func (r *Router) POST(path string, handle httprouter.Handle) {
-	r.base.Handle("POST", path, handle)
+func (r *Router) POST(path string, handle HandlerFunc) {
+	r.Handle("POST", path, handle)
 }
 
 // PUT is a shortcut for router.Handle("PUT", path, handle)
-func (r *Router) PUT(path string, handle httprouter.Handle) {
-	r.base.Handle("PUT", path, handle)
+func (r *Router) PUT(path string, handle HandlerFunc) {
+	r.Handle("PUT", path, handle)
 }
 
 // PATCH is a shortcut for router.Handle("PATCH", path, handle)
-func (r *Router) PATCH(path string, handle httprouter.Handle) {
-	r.base.Handle("PATCH", path, handle)
+func (r *Router) PATCH(path string, handle HandlerFunc) {
+	r.Handle("PATCH", path, handle)
 }
 
 // DELETE is a shortcut for router.Handle("DELETE", path, handle)
-func (r *Router) DELETE(path string, handle httprouter.Handle) {
-	r.base.Handle("DELETE", path, handle)
+func (r *Router) DELETE(path string, handle HandlerFunc) {
+	r.Handle("DELETE", path, handle)
 }
