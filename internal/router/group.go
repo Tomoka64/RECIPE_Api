@@ -20,6 +20,7 @@ func (r *Router) Group(prefix string) *Group {
 		base:             r.base,
 		prefix:           prefix,
 		ctx:              r.ctx,
+		middleware:       r.middleware,
 		HTTPErrorHandler: r.HTTPErrorHandler,
 	}
 }
