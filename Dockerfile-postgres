@@ -1,0 +1,13 @@
+FROM postgres:9.5-alpine
+
+ENV POSTGRES_PASSWORD=hellofresh
+ENV POSTGRES_USER=hellofresh
+ENV POSTGRES_DB=hellofresh
+
+COPY ./etc /data
+
+RUN psql -d $POSTGRES_DB -U $POSTGRES_USER -W $POSTGRES_PASSWORD < /data/setup.sql
+
+VOLUME /var/lib/postgresql/data
+
+ENTRYPOINT ["docker-entrypoint.sh"] 
