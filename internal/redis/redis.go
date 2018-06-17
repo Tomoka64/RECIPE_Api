@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"fmt"
 	"os"
 
 	redistore "gopkg.in/boj/redistore.v1"
@@ -9,6 +10,7 @@ import (
 type Store = *redistore.RediStore
 
 func New() (Store, error) {
+	fmt.Println(os.Getenv("REDIS_PORT"))
 	store, err := redistore.NewRediStore(10, "tcp", ":"+os.Getenv("REDIS_PORT"), "", []byte(os.Getenv("REDIS_SECRETKEY")))
 	if err != nil {
 		return nil, err

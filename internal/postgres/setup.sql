@@ -23,7 +23,6 @@ create table recipes (
 );
 
 create table ratings (
-  id serial primary key,
   rate integer,
   user_id    integer references users(id),
   recipe_id integer references recipes(id),
