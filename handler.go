@@ -82,29 +82,29 @@ func (s *Server) List() router.HandlerFunc {
 		if err != nil {
 			return router.NewHTTPError(status.NotFound, err.Error())
 		}
-		return c.JSON(status.OK, &Data{Recipes: recipes})
+		return c.JSON(status.OK, recipes)
 	}
 }
 
 func (s *Server) LoginProcess() router.HandlerFunc {
 	return func(c router.Context) error {
 		v, ok := c.Get("session")
+		sess := v.(*sessions.Session)
 		if ok {
-			sess := v.(*sessions.Session)
-			_, ok := sess.Values["username"]
+			_, ok := sess.Values["user"]
 			if ok {
 				return c.Redirect(status.SeeOther, "/")
 			}
 		}
-		username := c.Request().FormValue("username")
-		email := c.Request().FormValue("email")
-		password := c.Request().FormValue("password")
-		if !s.UserExists(username, email) {
+		user := &User{}
+		if err := json.NewDecoder(c.Request().Body).Decode(user); err != nil {
+			return router.NewHTTPError(status.InternalServerError, err.Error())
+		}
+		if !s.UserExists(user.Name, user.Email) {
 			return router.NewHTTPError(status.NotFound, "your username or email does not exist")
 		}
-		if s.UserAndPasswordMatch(username, password) {
-
-			c.Set("session", username)
+		if s.UserAndPasswordMatch(user.Name, user.Password) {
+			sess.Values["user"] = user
 		}
 		return nil
 	}
